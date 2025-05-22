@@ -41,6 +41,8 @@ func runFile(path string) error {
 
 func runPrompt() error {
 	reader := bufio.NewReader(os.Stdin)
+	ast := AstPrinter{}
+	ast.main()
 	for {
 		fmt.Print("> ")
 		line, err := reader.ReadString('\n')
@@ -54,9 +56,12 @@ func runPrompt() error {
 }
 
 func run(source string) {
-	for _, token := range source {
-		fmt.Printf("%c\n", token)
-	}
+	//for _, token := range source {
+	//	fmt.Printf("%c\n", token)
+	//}
+	scanner := newScanner(source)
+	scanner.ScanTokens()
+
 }
 func emitError(line int, message string) {
 	report(line, "", message)
