@@ -41,8 +41,6 @@ func runFile(path string) error {
 
 func runPrompt() error {
 	reader := bufio.NewReader(os.Stdin)
-	ast := AstPrinter{}
-	ast.main()
 	for {
 		fmt.Print("> ")
 		line, err := reader.ReadString('\n')
