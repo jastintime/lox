@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -204,6 +203,6 @@ func (s *Scanner) advance() rune {
 }
 func (s *Scanner) addToken(t TokenType, literal any) {
 	text := s.source[s.start:s.current]
-	fmt.Println(t, "(", literal, ")")
+	//fmt.Println(t, "(", literal, ")")
 	s.Tokens = append(s.Tokens, newToken(t, string(text), literal, s.line))
 }
