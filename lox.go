@@ -33,7 +33,8 @@ func runFile(path string) error {
 		return err
 	}
 	sourceStr := string(source)
-	run(sourceStr)
+	interpreter := Interpreter{newEnvironment(nil)}
+	run(sourceStr, interpreter)
 	if hadError {
 		os.Exit(65)
 	}
@@ -45,30 +46,30 @@ func runFile(path string) error {
 
 func runPrompt() error {
 	reader := bufio.NewReader(os.Stdin)
+	interpreter := Interpreter{newEnvironment(nil)}
 	for {
 		fmt.Print("> ")
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			return err
 		}
-		run(line)
+		run(line, interpreter)
 		hadError = false
 		hadRuntimeError = false
 	}
 	return nil
 }
 
-func run(source string) {
+func run(source string, interpreter Interpreter) {
 	//	ast := AstPrinter{} // not printing the ast, we are interpreting now!
 	scanner := newScanner(source)
 	tokens := scanner.ScanTokens()
 	parser := Parser{tokens, 0}
-	expr := parser.Parse()
+	statements := parser.Parse()
 	if hadError {
 		return
 	}
-	interpreter := Interpreter{}
-	interpreter.Interpret(expr)
+	interpreter.Interpret(statements)
 
 }
 func emitError(line int, message string) {

@@ -10,7 +10,83 @@ func newParser(tokens []*Token) *Parser {
 }
 
 func (p *Parser) expression() Expr {
-	return p.equality()
+	return p.assignment()
+}
+
+func (p *Parser) declaration() Stmt {
+	fmatch := p.match(Var)
+	if hadError {
+		p.synchronize()
+		return nil
+	}
+	if fmatch {
+		return p.varDeclaration()
+	}
+	smatch := p.statement()
+	if hadError {
+		p.synchronize()
+		return nil
+	}
+	return smatch
+}
+
+func (p *Parser) statement() Stmt {
+	if p.match(Print) {
+		return p.printStatement()
+	}
+	if p.match(LeftBrace) {
+		return BlockStmt{p.block()}
+	}
+	return p.expressionStatement()
+}
+
+func (p *Parser) printStatement() Stmt {
+	value := p.expression()
+	p.consume(Semicolon, "Expected ';' after value.")
+	return PrintStmt{value}
+}
+
+func (p *Parser) varDeclaration() Stmt {
+	name := p.consume(Identifier, "Expect variable name.")
+	var initializer Expr
+	initializer = nil
+	if p.match(Equal) {
+		initializer = p.expression()
+	}
+	p.consume(Semicolon, "Expect ';' after variable declaration.")
+	return VariableStmt{name, initializer}
+}
+
+func (p *Parser) expressionStatement() Stmt {
+	expr := p.expression()
+	p.consume(Semicolon, "Expect ';' after expression.")
+	return ExprStmt{expr}
+}
+
+func (p *Parser) block() []Stmt {
+	var statements []Stmt
+	for !p.check(RightBrace) && !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+	p.consume(RightBrace, "Expected '}' after block.")
+	return statements
+}
+
+func (p *Parser) assignment() Expr {
+	expr := p.equality()
+
+	if p.match(Equal) {
+		equals := p.previous()
+		value := p.assignment()
+		expr, ok := expr.(VariableExpr)
+		if ok {
+			name := expr.Name
+			return AssignExpr{name, value}
+		}
+		emitTokenError(equals, "Invalid assignment target.")
+	}
+	return expr
+
 }
 
 func (p *Parser) equality() Expr {
@@ -75,6 +151,9 @@ func (p *Parser) primary() Expr {
 	if p.match(Number, String) {
 		return LiteralExpr{p.previous().Literal}
 	}
+	if p.match(Identifier) {
+		return VariableExpr{p.previous()}
+	}
 	if p.match(LeftParen) {
 		expr := p.expression()
 		p.consume(RightParen, "Expect ')' after expression.")
@@ -88,12 +167,13 @@ func (p *Parser) primary() Expr {
 
 }
 
-func (p *Parser) Parse() Expr {
-	expr := p.expression()
-	if hadError {
-		return nil
+func (p *Parser) Parse() []Stmt {
+	var statements []Stmt
+	for !p.isAtEnd() {
+		statements = append(statements, p.declaration())
 	}
-	return expr
+
+	return statements
 
 }
 

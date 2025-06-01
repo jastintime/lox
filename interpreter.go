@@ -2,22 +2,19 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 )
 
-type Interpreter struct{}
+type Interpreter struct {
+	environment Environment
+}
 
-func (i Interpreter) Interpret(expression Expr) {
-	value := i.evaluate(expression)
-	if hadRuntimeError {
-		return
+func (i Interpreter) Interpret(statements []Stmt) {
+	for _, statement := range statements {
+		if hadRuntimeError {
+			return
+		}
+		i.execute(statement)
 	}
-	v, ok := value.(float64)
-	if ok {
-		// remove trailing .0
-		value = strconv.FormatFloat(v, 'f', -1, 64)
-	}
-	fmt.Println(value)
 }
 
 func (i Interpreter) VisitLiteralExpr(expr LiteralExpr) any {
@@ -72,6 +69,62 @@ func (i Interpreter) VisitGroupingExpr(expr GroupingExpr) any {
 
 func (i Interpreter) evaluate(expr Expr) any {
 	return expr.Accept(i)
+}
+
+func (i Interpreter) execute(stmt Stmt) {
+	stmt.Accept(i)
+}
+
+func (i Interpreter) executeBlock(statements []Stmt, environment Environment) {
+	// NOTE: in java a finally was used, we could simply just
+	// do i.environment = previous at the end of this function but what
+	// if we panic somewhere?
+	previous := i.environment
+	defer func() {
+		i.environment = previous
+	}()
+
+	i.environment = environment
+	for _, statement := range statements {
+		i.execute(statement)
+	}
+
+}
+
+func (i Interpreter) VisitBlockStmt(stmt BlockStmt) any {
+	i.executeBlock(stmt.Statements, newEnvironment(&i.environment))
+	return nil
+}
+
+func (i Interpreter) VisitExprStmt(stmt ExprStmt) any {
+	i.evaluate(stmt.Expression)
+	return nil
+}
+
+func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
+	value := i.evaluate(stmt.Expression)
+	fmt.Println(value)
+	return nil
+}
+
+func (i Interpreter) VisitVariableStmt(stmt VariableStmt) any {
+	var value any
+	value = nil
+	if stmt.Initializer != nil {
+		value = i.evaluate(stmt.Initializer)
+	}
+	i.environment.Define(stmt.Name.Lexeme, value)
+	return nil
+}
+
+func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
+	value := i.evaluate(expr.Value)
+	i.environment.Assign(expr.Name, value)
+	return value
+}
+
+func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
+	return i.environment.Get(expr.Name)
 }
 
 func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
