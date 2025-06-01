@@ -26,7 +26,7 @@ func (e Environment) Get(name Token) any {
 }
 
 func (e *Environment) Assign(name Token, value any) {
-	value, ok := e.values[name.Lexeme]
+	_, ok := e.values[name.Lexeme]
 	if ok {
 		e.values[name.Lexeme] = value
 		return

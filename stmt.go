@@ -5,6 +5,8 @@ type StmtVisitor interface {
 	VisitPrintStmt(stmt PrintStmt) any
 	VisitVariableStmt(stmt VariableStmt) any
 	VisitBlockStmt(stmt BlockStmt) any
+	VisitIfStmt(stmt IfStmt) any
+	VisitWhileStmt(stmt WhileStmt) any
 }
 
 type Stmt interface {
@@ -19,6 +21,12 @@ type ExprStmt struct {
 	Expression Expr
 }
 
+type IfStmt struct {
+	Condition  Expr
+	ThenBranch Stmt
+	ElseBranch Stmt
+}
+
 type PrintStmt struct {
 	Expression Expr
 }
@@ -26,6 +34,11 @@ type PrintStmt struct {
 type VariableStmt struct {
 	Name        Token
 	Initializer Expr
+}
+
+type WhileStmt struct {
+	Condition Expr
+	Body      Stmt
 }
 
 func (b ExprStmt) Accept(visitor StmtVisitor) any {
@@ -39,4 +52,11 @@ func (b VariableStmt) Accept(visitor StmtVisitor) any {
 }
 func (b BlockStmt) Accept(visitor StmtVisitor) any {
 	return visitor.VisitBlockStmt(b)
+}
+func (b IfStmt) Accept(visitor StmtVisitor) any {
+	return visitor.VisitIfStmt(b)
+}
+
+func (b WhileStmt) Accept(visitor StmtVisitor) any {
+	return visitor.VisitWhileStmt(b)
 }

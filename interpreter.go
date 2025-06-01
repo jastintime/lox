@@ -21,6 +21,20 @@ func (i Interpreter) VisitLiteralExpr(expr LiteralExpr) any {
 	return expr.Value
 }
 
+func (i Interpreter) VisitLogicalExpr(expr LogicalExpr) any {
+	left := i.evaluate(expr.Left)
+	if expr.Operator.Type == Or {
+		if i.isTruthy(left) {
+			return left
+		} else {
+			if !i.isTruthy(left) {
+				return left
+			}
+		}
+	}
+	return i.evaluate(expr.Right)
+}
+
 func (i Interpreter) VisitUnaryExpr(expr UnaryExpr) any {
 	right := i.evaluate(expr.Right)
 	switch expr.Operator.Type {
@@ -101,6 +115,15 @@ func (i Interpreter) VisitExprStmt(stmt ExprStmt) any {
 	return nil
 }
 
+func (i Interpreter) VisitIfStmt(stmt IfStmt) any {
+	if i.isTruthy(i.evaluate(stmt.Condition)) {
+		i.execute(stmt.ThenBranch)
+	} else if stmt.ElseBranch != nil {
+		i.execute(stmt.ElseBranch)
+	}
+	return nil
+}
+
 func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
 	value := i.evaluate(stmt.Expression)
 	fmt.Println(value)
@@ -114,6 +137,13 @@ func (i Interpreter) VisitVariableStmt(stmt VariableStmt) any {
 		value = i.evaluate(stmt.Initializer)
 	}
 	i.environment.Define(stmt.Name.Lexeme, value)
+	return nil
+}
+
+func (i Interpreter) VisitWhileStmt(stmt WhileStmt) any {
+	for i.isTruthy(i.evaluate(stmt.Condition)) {
+		i.execute(stmt.Body)
+	}
 	return nil
 }
 
