@@ -14,12 +14,21 @@ func (p *Parser) expression() Expr {
 }
 
 func (p *Parser) declaration() Stmt {
-	fmatch := p.match(Var)
+	fmatch := p.match(Fun)
 	if hadError {
 		p.synchronize()
 		return nil
 	}
 	if fmatch {
+		return p.function("function")
+	}
+
+	vmatch := p.match(Var)
+	if hadError {
+		p.synchronize()
+		return nil
+	}
+	if vmatch {
 		return p.varDeclaration()
 	}
 	smatch := p.statement()
@@ -33,6 +42,9 @@ func (p *Parser) declaration() Stmt {
 func (p *Parser) statement() Stmt {
 	if p.match(Print) {
 		return p.printStatement()
+	}
+	if p.match(Return) {
+		return p.returnStatement()
 	}
 	if p.match(While) {
 		return p.WhileStatement()
@@ -107,6 +119,16 @@ func (p *Parser) printStatement() Stmt {
 	return PrintStmt{value}
 }
 
+func (p *Parser) returnStatement() Stmt {
+	keyword := p.previous()
+	var value Expr = nil
+	if !p.check(Semicolon) {
+		value = p.expression()
+	}
+	p.consume(Semicolon, "Expect ';' after return value.")
+	return ReturnStmt{keyword, value}
+}
+
 func (p *Parser) varDeclaration() Stmt {
 	name := p.consume(Identifier, "Expect variable name.")
 	var initializer Expr
@@ -130,6 +152,27 @@ func (p *Parser) expressionStatement() Stmt {
 	expr := p.expression()
 	p.consume(Semicolon, "Expect ';' after expression.")
 	return ExprStmt{expr}
+}
+
+func (p *Parser) function(kind string) FunctionStmt {
+	name := p.consume(Identifier, "Expect"+kind+" name.")
+	p.consume(LeftParen, "Expect '(' after "+kind+"name.")
+	var parameters []Token
+	if !p.check(RightParen) {
+		parameters = append(parameters, p.consume(Identifier, "Expect parameter name."))
+		for p.match(Comma) {
+			// NOTE: once again because of difference with do while
+			if len(parameters) >= 254 {
+				emitTokenError(p.peek(), "Can't have more than 255 parameters.")
+			}
+			parameters = append(parameters, p.consume(Identifier, "Expect parameter name."))
+		}
+	}
+	p.consume(RightParen, "Expect ')' after parameters. ")
+	p.consume(LeftBrace, "Expect '{' before "+kind+" body.")
+	body := p.block()
+	return FunctionStmt{name, parameters, body}
+
 }
 
 func (p *Parser) block() []Stmt {
@@ -225,7 +268,38 @@ func (p *Parser) unary() Expr {
 		right := p.unary()
 		return UnaryExpr{operator, right}
 	}
-	return p.primary()
+	return p.call()
+}
+
+func (p *Parser) finishCall(callee Expr) Expr {
+	var arguments []Expr
+	if !p.check(RightParen) {
+		p.match(Comma)
+		arguments = append(arguments, p.expression())
+		for p.match(Comma) {
+			arguments = append(arguments, p.expression())
+			//NOTE: in the java version we do 255 but here we aren't doing a do while so its 254
+			if len(arguments) >= 254 {
+				emitTokenError(p.peek(), "Can't have more than 255 arguments.")
+			}
+		}
+	}
+	paren := p.consume(RightParen, "Expect ')' after arguments.")
+	return CallExpr{callee, paren, arguments}
+
+}
+
+func (p *Parser) call() Expr {
+	expr := p.primary()
+
+	for {
+		if p.match(LeftParen) {
+			expr = p.finishCall(expr)
+		} else {
+			break
+		}
+	}
+	return expr
 }
 
 func (p *Parser) primary() Expr {

@@ -8,6 +8,7 @@ type ExprVisitor interface {
 	VisitGroupingExpr(expr GroupingExpr) any
 	VisitVariableExpr(expr VariableExpr) any
 	VisitLogicalExpr(expr LogicalExpr) any
+	VisitCallExpr(expr CallExpr) any
 }
 
 type Expr interface {
@@ -40,6 +41,12 @@ type BinaryExpr struct {
 	Right    Expr
 }
 
+type CallExpr struct {
+	Callee    Expr
+	Paren     Token
+	Arguments []Expr
+}
+
 type GroupingExpr struct {
 	Expression Expr
 }
@@ -70,4 +77,7 @@ func (b AssignExpr) Accept(visitor ExprVisitor) any {
 }
 func (b LogicalExpr) Accept(visitor ExprVisitor) any {
 	return visitor.VisitLogicalExpr(b)
+}
+func (b CallExpr) Accept(visitor ExprVisitor) any {
+	return visitor.VisitCallExpr(b)
 }

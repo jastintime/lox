@@ -2,10 +2,32 @@ package main
 
 import (
 	"fmt"
+	"time"
 )
 
 type Interpreter struct {
-	environment Environment
+	Environment Environment
+	Globals     Environment
+}
+
+func newInterpreter() Interpreter {
+	globals := newEnvironment(nil)
+	globals.Define("clock", Clock{})
+	environment := globals
+	return Interpreter{environment, globals}
+}
+
+type Clock struct{}
+
+func (c Clock) Arity() int {
+	return 0
+}
+func (c Clock) Call(interpreter Interpreter, arguments []any) any {
+	return float64(time.Now().UnixMilli()) / 1000.0
+}
+
+func (c Clock) String() string {
+	return "<native fn>"
 }
 
 func (i Interpreter) Interpret(statements []Stmt) {
@@ -91,14 +113,14 @@ func (i Interpreter) execute(stmt Stmt) {
 
 func (i Interpreter) executeBlock(statements []Stmt, environment Environment) {
 	// NOTE: in java a finally was used, we could simply just
-	// do i.environment = previous at the end of this function but what
+	// do i.Environment = previous at the end of this function but what
 	// if we panic somewhere?
-	previous := i.environment
+	previous := i.Environment
 	defer func() {
-		i.environment = previous
+		i.Environment = previous
 	}()
 
-	i.environment = environment
+	i.Environment = environment
 	for _, statement := range statements {
 		i.execute(statement)
 	}
@@ -106,12 +128,18 @@ func (i Interpreter) executeBlock(statements []Stmt, environment Environment) {
 }
 
 func (i Interpreter) VisitBlockStmt(stmt BlockStmt) any {
-	i.executeBlock(stmt.Statements, newEnvironment(&i.environment))
+	i.executeBlock(stmt.Statements, newEnvironment(&i.Environment))
 	return nil
 }
 
 func (i Interpreter) VisitExprStmt(stmt ExprStmt) any {
 	i.evaluate(stmt.Expression)
+	return nil
+}
+
+func (i Interpreter) VisitFunctionStmt(stmt FunctionStmt) any {
+	function := LoxFunction{stmt, i.Environment}
+	i.Environment.Define(stmt.Name.Lexeme, function)
 	return nil
 }
 
@@ -130,13 +158,21 @@ func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
 	return nil
 }
 
+func (i Interpreter) VisitReturnStmt(stmt ReturnStmt) any {
+	var value any = nil
+	if stmt.Value != nil {
+		value = i.evaluate(stmt.Value)
+	}
+	panic(value)
+}
+
 func (i Interpreter) VisitVariableStmt(stmt VariableStmt) any {
 	var value any
 	value = nil
 	if stmt.Initializer != nil {
 		value = i.evaluate(stmt.Initializer)
 	}
-	i.environment.Define(stmt.Name.Lexeme, value)
+	i.Environment.Define(stmt.Name.Lexeme, value)
 	return nil
 }
 
@@ -149,12 +185,12 @@ func (i Interpreter) VisitWhileStmt(stmt WhileStmt) any {
 
 func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
 	value := i.evaluate(expr.Value)
-	i.environment.Assign(expr.Name, value)
+	i.Environment.Assign(expr.Name, value)
 	return value
 }
 
 func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
-	return i.environment.Get(expr.Name)
+	return i.Environment.Get(expr.Name)
 }
 
 func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
@@ -213,4 +249,23 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 	}
 	// Unreachable
 	return nil
+}
+
+func (i Interpreter) VisitCallExpr(expr CallExpr) any {
+	callee := i.evaluate(expr.Callee)
+	var arguments []any
+	for _, argument := range expr.Arguments {
+		arguments = append(arguments, i.evaluate(argument))
+	}
+	function, ok := callee.(LoxCallable)
+	if !ok {
+		fmt.Println(callee)
+		emitRuntimeError(expr.Paren, "Can only call functions and classes.")
+		return nil
+	}
+	if len(arguments) != function.Arity() {
+		emitRuntimeError(expr.Paren, "Expected "+string(function.Arity())+" arguments but got "+string(len(arguments))+".")
+		return nil
+	}
+	return function.Call(i, arguments)
 }

@@ -33,7 +33,7 @@ func runFile(path string) error {
 		return err
 	}
 	sourceStr := string(source)
-	interpreter := Interpreter{newEnvironment(nil)}
+	interpreter := newInterpreter()
 	run(sourceStr, interpreter)
 	if hadError {
 		os.Exit(65)
@@ -46,7 +46,7 @@ func runFile(path string) error {
 
 func runPrompt() error {
 	reader := bufio.NewReader(os.Stdin)
-	interpreter := Interpreter{newEnvironment(nil)}
+	interpreter := newInterpreter()
 	for {
 		fmt.Print("> ")
 		line, err := reader.ReadString('\n')
