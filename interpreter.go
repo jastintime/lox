@@ -8,13 +8,14 @@ import (
 type Interpreter struct {
 	Environment Environment
 	Globals     Environment
+	Locals      map[Expr]int
 }
 
 func newInterpreter() Interpreter {
 	globals := newEnvironment(nil)
 	globals.Define("clock", Clock{})
 	environment := globals
-	return Interpreter{environment, globals}
+	return Interpreter{environment, globals, make(map[Expr]int)}
 }
 
 type Clock struct{}
@@ -111,6 +112,10 @@ func (i Interpreter) execute(stmt Stmt) {
 	stmt.Accept(i)
 }
 
+func (i Interpreter) Resolve(expr Expr, depth int) {
+	i.Locals[expr] = depth
+}
+
 func (i Interpreter) executeBlock(statements []Stmt, environment Environment) {
 	// NOTE: in java a finally was used, we could simply just
 	// do i.Environment = previous at the end of this function but what
@@ -185,12 +190,26 @@ func (i Interpreter) VisitWhileStmt(stmt WhileStmt) any {
 
 func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
 	value := i.evaluate(expr.Value)
-	i.Environment.Assign(expr.Name, value)
+	distance, ok := i.Locals[expr]
+	if ok {
+		i.Environment.AssignAt(distance, expr.Name, value)
+	} else {
+		i.Globals.Assign(expr.Name, value)
+	}
 	return value
 }
 
 func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
-	return i.Environment.Get(expr.Name)
+	return i.lookupVariable(expr.Name, expr)
+}
+
+func (i Interpreter) lookupVariable(name Token, expr Expr) any {
+	distance, ok := i.Locals[expr]
+	if ok {
+		return i.Environment.GetAt(distance, name.Lexeme)
+	}
+	return i.Globals.Get(name)
+
 }
 
 func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {

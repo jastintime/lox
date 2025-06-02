@@ -69,6 +69,11 @@ func run(source string, interpreter Interpreter) {
 	if hadError {
 		return
 	}
+	resolver := newResolver(interpreter)
+	resolver.resolve(statements)
+	if hadError {
+		return
+	}
 	interpreter.Interpret(statements)
 
 }

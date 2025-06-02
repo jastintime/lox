@@ -13,6 +13,18 @@ func (e *Environment) Define(name string, value any) {
 	e.values[name] = value
 }
 
+func (e Environment) GetAt(distance int, name string) any {
+	return e.ancestor(distance).values[name]
+}
+
+func (e Environment) ancestor(distance int) Environment {
+	environment := e
+	for i := 0; i < distance; i++ {
+		environment = *environment.enclosing
+	}
+	return environment
+}
+
 func (e Environment) Get(name Token) any {
 	value, ok := e.values[name.Lexeme]
 	if ok {
@@ -36,4 +48,8 @@ func (e *Environment) Assign(name Token, value any) {
 		return
 	}
 	emitRuntimeError(name, "Undefined variable '"+name.Lexeme+"'.")
+}
+
+func (e *Environment) AssignAt(distance int, name Token, value any) {
+	e.ancestor(distance).values[name.Lexeme] = value
 }
