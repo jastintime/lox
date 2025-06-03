@@ -49,6 +49,12 @@ func (p *Parser) declaration() Stmt {
 
 func (p *Parser) classDeclaration() Stmt {
 	name := p.consume(Identifier, "Expect class name.")
+	var superclass *VariableExpr = nil
+	if p.match(Less) {
+		p.consume(Identifier, "Expect superclass name.")
+		superclass = &VariableExpr{p.previous()}
+	}
+
 	p.consume(LeftBrace, "Expect '{' before class body.")
 
 	var methods []FunctionStmt
@@ -56,7 +62,7 @@ func (p *Parser) classDeclaration() Stmt {
 		methods = append(methods, p.function("method"))
 	}
 	p.consume(RightBrace, "Expect '}' after class body.")
-	return ClassStmt{name, methods}
+	return ClassStmt{name, superclass, methods}
 
 }
 
@@ -342,6 +348,12 @@ func (p *Parser) primary() Expr {
 	}
 	if p.match(Number, String) {
 		return LiteralExpr{p.previous().Literal}
+	}
+	if p.match(Super) {
+		keyword := p.previous()
+		p.consume(Dot, "Expect '.' after 'super'.")
+		method := p.consume(Identifier, "Expect superclass method name.")
+		return SuperExpr{keyword, method}
 	}
 	if p.match(This) {
 		return ThisExpr{p.previous()}

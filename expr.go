@@ -12,6 +12,7 @@ type ExprVisitor interface {
 	VisitGetExpr(expr GetExpr) any
 	VisitSetExpr(Expr SetExpr) any
 	VisitThisExpr(Expr ThisExpr) any
+	VisitSuperExpr(Expr SuperExpr) any
 }
 
 type Expr interface {
@@ -32,6 +33,11 @@ type SetExpr struct {
 	Object Expr
 	Name   Token
 	Value  Expr
+}
+
+type SuperExpr struct {
+	Keyword Token
+	Method  Token
 }
 
 type ThisExpr struct {
@@ -107,4 +113,7 @@ func (b SetExpr) Accept(visitor ExprVisitor) any {
 }
 func (b ThisExpr) Accept(visitor ExprVisitor) any {
 	return visitor.VisitThisExpr(b)
+}
+func (b SuperExpr) Accept(visitor ExprVisitor) any {
+	return visitor.VisitSuperExpr(b)
 }

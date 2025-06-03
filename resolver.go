@@ -31,6 +31,19 @@ func (r Resolver) VisitClassStmt(stmt ClassStmt) any {
 	r.declare(stmt.Name)
 	r.define(stmt.Name)
 
+	if stmt.Superclass != nil && stmt.Name.Lexeme == stmt.Superclass.Name.Lexeme {
+		emitTokenError(stmt.Superclass.Name, "A class can't inherit from itself.")
+	}
+
+	if stmt.Superclass != nil {
+		r.currentClass = classType.Subclass
+		r.resolve(*stmt.Superclass)
+	}
+
+	if stmt.Superclass != nil {
+		r.beginScope()
+		r.scopes.Peek()["super"] = true
+	}
 	r.beginScope()
 	r.scopes.Peek()["this"] = true
 
@@ -42,6 +55,9 @@ func (r Resolver) VisitClassStmt(stmt ClassStmt) any {
 		r.resolveFunction(method, declaration)
 	}
 	r.endScope()
+	if stmt.Superclass != nil {
+		r.endScope()
+	}
 	r.currentClass = enclosingClass
 	return nil
 }
@@ -145,6 +161,18 @@ func (r Resolver) VisitSetExpr(expr SetExpr) any {
 	r.resolve(expr.Object)
 	return nil
 }
+
+func (r Resolver) VisitSuperExpr(expr SuperExpr) any {
+	if r.currentClass == classType.None {
+		emitTokenError(expr.Keyword, "Can't use 'super' outside of a class")
+	} else if r.currentClass != classType.Subclass {
+		emitTokenError(expr.Keyword, "Can't use 'super' in a class with no superclass.")
+	}
+
+	r.resolveLocal(expr, expr.Keyword)
+	return nil
+}
+
 func (r Resolver) VisitThisExpr(expr ThisExpr) any {
 	if r.currentClass == classType.None {
 		emitTokenError(expr.Keyword, "Can't use 'this' outside of a class.")

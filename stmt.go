@@ -21,8 +21,9 @@ type BlockStmt struct {
 }
 
 type ClassStmt struct {
-	Name    Token
-	Methods []FunctionStmt
+	Name       Token
+	Superclass *VariableExpr
+	Methods    []FunctionStmt
 }
 
 type ExprStmt struct {
