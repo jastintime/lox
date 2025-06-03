@@ -9,6 +9,9 @@ type ExprVisitor interface {
 	VisitVariableExpr(expr VariableExpr) any
 	VisitLogicalExpr(expr LogicalExpr) any
 	VisitCallExpr(expr CallExpr) any
+	VisitGetExpr(expr GetExpr) any
+	VisitSetExpr(Expr SetExpr) any
+	VisitThisExpr(Expr ThisExpr) any
 }
 
 type Expr interface {
@@ -23,6 +26,16 @@ type LogicalExpr struct {
 	Left     Expr
 	Operator Token
 	Right    Expr
+}
+
+type SetExpr struct {
+	Object Expr
+	Name   Token
+	Value  Expr
+}
+
+type ThisExpr struct {
+	Keyword Token
 }
 
 type UnaryExpr struct {
@@ -45,6 +58,11 @@ type CallExpr struct {
 	Callee    Expr
 	Paren     Token
 	Arguments []Expr
+}
+
+type GetExpr struct {
+	Object Expr
+	Name   Token
 }
 
 type GroupingExpr struct {
@@ -80,4 +98,13 @@ func (b LogicalExpr) Accept(visitor ExprVisitor) any {
 }
 func (b CallExpr) Accept(visitor ExprVisitor) any {
 	return visitor.VisitCallExpr(b)
+}
+func (b GetExpr) Accept(visitor ExprVisitor) any {
+	return visitor.VisitGetExpr(b)
+}
+func (b SetExpr) Accept(visitor ExprVisitor) any {
+	return visitor.VisitSetExpr(b)
+}
+func (b ThisExpr) Accept(visitor ExprVisitor) any {
+	return visitor.VisitThisExpr(b)
 }

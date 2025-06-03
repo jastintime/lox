@@ -1,18 +1,28 @@
 package main
 
 type LoxFunction struct {
-	Declaration FunctionStmt
-	Closure     Environment
+	Declaration   FunctionStmt
+	Closure       Environment
+	isInitializer bool
 }
 
-func newLoxFunction(declaration FunctionStmt, closure Environment) LoxFunction {
-	return LoxFunction{declaration, closure}
+func (l *LoxFunction) Bind(instance LoxInstance) LoxFunction {
+	environment := newEnvironment(&l.Closure)
+	environment.Define("this", instance)
+	return newLoxFunction(l.Declaration, environment, l.isInitializer)
+}
+
+func newLoxFunction(declaration FunctionStmt, closure Environment, isInitializer bool) LoxFunction {
+	return LoxFunction{declaration, closure, isInitializer}
 }
 
 // BEAUTY
 func (l LoxFunction) Call(interpreter Interpreter, arguments []any) (result any) {
 	defer func() {
 		result = recover()
+		if l.isInitializer {
+			result = l.Closure.GetAt(0, "this")
+		}
 	}()
 
 	environment := newEnvironment(&l.Closure)
@@ -20,6 +30,9 @@ func (l LoxFunction) Call(interpreter Interpreter, arguments []any) (result any)
 		environment.Define(l.Declaration.Params[i].Lexeme, arguments[i])
 	}
 	interpreter.executeBlock(l.Declaration.Body, environment)
+	if l.isInitializer {
+		l.Closure.GetAt(0, "this")
+	}
 	return nil
 }
 

@@ -58,6 +58,21 @@ func (i Interpreter) VisitLogicalExpr(expr LogicalExpr) any {
 	return i.evaluate(expr.Right)
 }
 
+func (i Interpreter) VisitSetExpr(expr SetExpr) any {
+	object := i.evaluate(expr.Object)
+	o, ok := object.(LoxInstance)
+	if !ok {
+		emitRuntimeError(expr.Name, "Only instances have fields.")
+	}
+	value := i.evaluate(expr.Value)
+	o.Set(expr.Name, value)
+	return value
+}
+
+func (i Interpreter) VisitThisExpr(expr ThisExpr) any {
+	return i.lookupVariable(expr.Keyword, expr)
+}
+
 func (i Interpreter) VisitUnaryExpr(expr UnaryExpr) any {
 	right := i.evaluate(expr.Right)
 	switch expr.Operator.Type {
@@ -137,13 +152,27 @@ func (i Interpreter) VisitBlockStmt(stmt BlockStmt) any {
 	return nil
 }
 
+func (i Interpreter) VisitClassStmt(stmt ClassStmt) any {
+	i.Environment.Define(stmt.Name.Lexeme, nil)
+
+	methods := make(map[string]LoxFunction)
+	for _, method := range stmt.Methods {
+		function := newLoxFunction(method, i.Environment, method.Name.Lexeme == "init")
+		methods[method.Name.Lexeme] = function
+	}
+
+	class := LoxClass{stmt.Name.Lexeme, methods}
+	i.Environment.Assign(stmt.Name, class)
+	return nil
+}
+
 func (i Interpreter) VisitExprStmt(stmt ExprStmt) any {
 	i.evaluate(stmt.Expression)
 	return nil
 }
 
 func (i Interpreter) VisitFunctionStmt(stmt FunctionStmt) any {
-	function := LoxFunction{stmt, i.Environment}
+	function := LoxFunction{stmt, i.Environment, false}
 	i.Environment.Define(stmt.Name.Lexeme, function)
 	return nil
 }
@@ -287,4 +316,14 @@ func (i Interpreter) VisitCallExpr(expr CallExpr) any {
 		return nil
 	}
 	return function.Call(i, arguments)
+}
+
+func (i Interpreter) VisitGetExpr(expr GetExpr) any {
+	object := i.evaluate(expr.Object)
+	value, ok := object.(LoxInstance)
+	if ok {
+		return value.Get(expr.Name)
+	}
+	emitRuntimeError(expr.Name, "Only instances have properties.")
+	return nil
 }

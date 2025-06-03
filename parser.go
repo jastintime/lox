@@ -14,6 +14,14 @@ func (p *Parser) expression() Expr {
 }
 
 func (p *Parser) declaration() Stmt {
+	cmatch := p.match(Class)
+	if hadError {
+		p.synchronize()
+		return nil
+	}
+	if cmatch {
+		return p.classDeclaration()
+	}
 	fmatch := p.match(Fun)
 	if hadError {
 		p.synchronize()
@@ -37,6 +45,19 @@ func (p *Parser) declaration() Stmt {
 		return nil
 	}
 	return smatch
+}
+
+func (p *Parser) classDeclaration() Stmt {
+	name := p.consume(Identifier, "Expect class name.")
+	p.consume(LeftBrace, "Expect '{' before class body.")
+
+	var methods []FunctionStmt
+	for !p.check(RightBrace) && !p.isAtEnd() {
+		methods = append(methods, p.function("method"))
+	}
+	p.consume(RightBrace, "Expect '}' after class body.")
+	return ClassStmt{name, methods}
+
 }
 
 func (p *Parser) statement() Stmt {
@@ -189,10 +210,14 @@ func (p *Parser) assignment() Expr {
 	if p.match(Equal) {
 		equals := p.previous()
 		value := p.assignment()
-		expr, ok := expr.(VariableExpr)
+		varE, ok := expr.(VariableExpr)
 		if ok {
-			name := expr.Name
+			name := varE.Name
 			return AssignExpr{name, value}
+		}
+		get, ok := expr.(GetExpr)
+		if ok {
+			return SetExpr{get.Object, get.Name, value}
 		}
 		emitTokenError(equals, "Invalid assignment target.")
 	}
@@ -295,6 +320,9 @@ func (p *Parser) call() Expr {
 	for {
 		if p.match(LeftParen) {
 			expr = p.finishCall(expr)
+		} else if p.match(Dot) {
+			name := p.consume(Identifier, "Expect property name after '.'.")
+			expr = GetExpr{expr, name}
 		} else {
 			break
 		}
@@ -314,6 +342,9 @@ func (p *Parser) primary() Expr {
 	}
 	if p.match(Number, String) {
 		return LiteralExpr{p.previous().Literal}
+	}
+	if p.match(This) {
+		return ThisExpr{p.previous()}
 	}
 	if p.match(Identifier) {
 		return VariableExpr{p.previous()}
