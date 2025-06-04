@@ -5,8 +5,23 @@ type Parser struct {
 	current int
 }
 
+type ParseError struct {
+	Token  Token
+	Messge string
+}
+
 func newParser(tokens []*Token) *Parser {
 	return &Parser{tokens, 0}
+}
+
+func (p *Parser) Parse() []Stmt {
+	var statements []Stmt
+	for !p.isAtEnd() {
+		statements = append(statements, p.declaration())
+	}
+
+	return statements
+
 }
 
 func (p *Parser) expression() Expr {
@@ -14,37 +29,35 @@ func (p *Parser) expression() Expr {
 }
 
 func (p *Parser) declaration() Stmt {
-	cmatch := p.match(Class)
-	if hadError {
-		p.synchronize()
-		return nil
-	}
-	if cmatch {
+	//NOTE: this is golang try catching :)
+	defer func() {
+		recovered := recover()
+		parseError, ok := recovered.(ParseError)
+		if ok {
+			emitTokenError(parseError.Token, parseError.Messge)
+			p.synchronize()
+		}
+		//STILL WANT TO PANIC OTHERWISE
+		if !ok {
+			if recovered != nil {
+				panic(recovered)
+			}
+		}
+	}()
+
+	if p.match(Class) {
 		return p.classDeclaration()
 	}
-	fmatch := p.match(Fun)
-	if hadError {
-		p.synchronize()
-		return nil
-	}
-	if fmatch {
+
+	if p.match(Fun) {
 		return p.function("function")
 	}
 
-	vmatch := p.match(Var)
-	if hadError {
-		p.synchronize()
-		return nil
-	}
-	if vmatch {
+	if p.match(Var) {
 		return p.varDeclaration()
 	}
-	smatch := p.statement()
-	if hadError {
-		p.synchronize()
-		return nil
-	}
-	return smatch
+
+	return p.statement()
 }
 
 func (p *Parser) classDeclaration() Stmt {
@@ -67,6 +80,12 @@ func (p *Parser) classDeclaration() Stmt {
 }
 
 func (p *Parser) statement() Stmt {
+	if p.match(For) {
+		return p.forStatement()
+	}
+	if p.match(If) {
+		return p.ifStatement()
+	}
 	if p.match(Print) {
 		return p.printStatement()
 	}
@@ -79,18 +98,49 @@ func (p *Parser) statement() Stmt {
 	if p.match(LeftBrace) {
 		return BlockStmt{p.block()}
 	}
-	if p.match(For) {
-		return p.forStatement()
-	}
-	if p.match(If) {
-		return p.ifStatement()
-	}
 	return p.expressionStatement()
 }
 
+//	func (p *Parser) forStatement() Stmt {
+//		p.consume(LeftParen, "Expect '(' after 'for'.")
+//
+//		var initializer Stmt
+//		if p.match(Semicolon) {
+//			initializer = nil
+//		} else if p.match(Var) {
+//			initializer = p.varDeclaration()
+//		} else {
+//			initializer = p.expressionStatement()
+//		}
+//
+//		var condition Expr = nil
+//		if !p.check(Semicolon) {
+//			condition = p.expression()
+//		}
+//		p.consume(Semicolon, "Expect ';' after loop condition.")
+//
+//		var increment Expr = nil
+//		if !p.check(RightParen) {
+//			increment = p.expression()
+//		}
+//		p.consume(RightParen, "Expect ')' after for clauses.")
+//		body := p.statement()
+//		if increment != nil {
+//			body = BlockStmt{[]Stmt{body, ExprStmt{increment}}}
+//		}
+//
+//		if condition == nil {
+//			condition = LiteralExpr{true}
+//		}
+//		body = WhileStmt{condition, body}
+//		if initializer != nil {
+//			body = BlockStmt{[]Stmt{initializer, body}}
+//		}
+//
+//		return body
+//	}
 func (p *Parser) forStatement() Stmt {
 	p.consume(LeftParen, "Expect '(' after 'for'.")
-
 	var initializer Stmt
 	if p.match(Semicolon) {
 		initializer = nil
@@ -99,12 +149,11 @@ func (p *Parser) forStatement() Stmt {
 	} else {
 		initializer = p.expressionStatement()
 	}
-
 	var condition Expr = nil
 	if !p.check(Semicolon) {
 		condition = p.expression()
 	}
-	p.consume(Semicolon, "Expect ';' after loop condition")
+	p.consume(Semicolon, "Expect ';' after loop condition.")
 
 	var increment Expr = nil
 	if !p.check(RightParen) {
@@ -115,7 +164,6 @@ func (p *Parser) forStatement() Stmt {
 	if increment != nil {
 		body = BlockStmt{[]Stmt{body, ExprStmt{increment}}}
 	}
-
 	if condition == nil {
 		condition = LiteralExpr{true}
 	}
@@ -123,7 +171,6 @@ func (p *Parser) forStatement() Stmt {
 	if initializer != nil {
 		body = BlockStmt{[]Stmt{initializer, body}}
 	}
-
 	return body
 }
 
@@ -158,6 +205,7 @@ func (p *Parser) returnStatement() Stmt {
 
 func (p *Parser) varDeclaration() Stmt {
 	name := p.consume(Identifier, "Expect variable name.")
+
 	var initializer Expr
 	initializer = nil
 	if p.match(Equal) {
@@ -189,13 +237,13 @@ func (p *Parser) function(kind string) FunctionStmt {
 		parameters = append(parameters, p.consume(Identifier, "Expect parameter name."))
 		for p.match(Comma) {
 			// NOTE: once again because of difference with do while
-			if len(parameters) >= 254 {
-				emitTokenError(p.peek(), "Can't have more than 255 parameters.")
+			if len(parameters) >= 255 {
+				panic(ParseError{p.peek(), "Can't have more than 255 parameters."})
 			}
 			parameters = append(parameters, p.consume(Identifier, "Expect parameter name."))
 		}
 	}
-	p.consume(RightParen, "Expect ')' after parameters. ")
+	p.consume(RightParen, "Expect ')' after parameters.")
 	p.consume(LeftBrace, "Expect '{' before "+kind+" body.")
 	body := p.block()
 	return FunctionStmt{name, parameters, body}
@@ -225,7 +273,7 @@ func (p *Parser) assignment() Expr {
 		if ok {
 			return SetExpr{get.Object, get.Name, value}
 		}
-		emitTokenError(equals, "Invalid assignment target.")
+		panic(ParseError{equals, "Invalid assignment target."})
 	}
 	return expr
 
@@ -308,11 +356,11 @@ func (p *Parser) finishCall(callee Expr) Expr {
 		p.match(Comma)
 		arguments = append(arguments, p.expression())
 		for p.match(Comma) {
+			if len(arguments) >= 255 {
+				panic(ParseError{p.peek(), "Can't have more than 255 arguments."})
+			}
 			arguments = append(arguments, p.expression())
 			//NOTE: in the java version we do 255 but here we aren't doing a do while so its 254
-			if len(arguments) >= 254 {
-				emitTokenError(p.peek(), "Can't have more than 255 arguments.")
-			}
 		}
 	}
 	paren := p.consume(RightParen, "Expect ')' after arguments.")
@@ -366,21 +414,8 @@ func (p *Parser) primary() Expr {
 		p.consume(RightParen, "Expect ')' after expression.")
 		return GroupingExpr{expr}
 	}
-	// NOTE: should never arrive here as this is used internally and only by unary which only calls us
-	// for the matched statements.
-	emitTokenError(p.peek(), "Expect expression.")
-
+	panic(ParseError{p.peek(), "Expect expression."})
 	return nil
-
-}
-
-func (p *Parser) Parse() []Stmt {
-	var statements []Stmt
-	for !p.isAtEnd() {
-		statements = append(statements, p.declaration())
-	}
-
-	return statements
 
 }
 
@@ -398,23 +433,8 @@ func (p *Parser) consume(t TokenType, message string) Token {
 	if p.check(t) {
 		return p.advance()
 	}
-	emitTokenError(p.peek(), message)
+	panic(ParseError{p.peek(), message})
 	return Token{}
-
-}
-
-func (p *Parser) synchronize() {
-	p.advance()
-	for !p.isAtEnd() {
-		if p.previous().Type == Semicolon {
-			return
-		}
-		switch p.peek().Type {
-		case Class | Fun | Var | For | If | While | Print | Return:
-			return
-		}
-		p.advance()
-	}
 
 }
 
@@ -441,4 +461,18 @@ func (p *Parser) peek() Token {
 }
 func (p *Parser) previous() Token {
 	return *p.Tokens[p.current-1]
+}
+
+func (p *Parser) synchronize() {
+	p.advance()
+	for !p.isAtEnd() {
+		if p.previous().Type == Semicolon {
+			return
+		}
+		switch p.peek().Type {
+		case Class | Fun | Var | For | If | While | Print | Return:
+			return
+		}
+		p.advance()
+	}
 }

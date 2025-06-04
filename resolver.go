@@ -17,6 +17,21 @@ func newResolver(interpreter Interpreter) Resolver {
 	return Resolver{interpreter, stack, functionType.None, classType.None}
 }
 
+func (r Resolver) resolve(a any) {
+	switch arg := a.(type) {
+	case []Stmt:
+		for _, statement := range arg {
+			r.resolve(statement)
+		}
+	case Stmt:
+		arg.Accept(r)
+	case Expr:
+		arg.Accept(r)
+	default:
+		panic("unexpected resolve")
+	}
+}
+
 func (r Resolver) VisitBlockStmt(stmt BlockStmt) any {
 	r.beginScope()
 	r.resolve(stmt.Statements)
@@ -44,6 +59,7 @@ func (r Resolver) VisitClassStmt(stmt ClassStmt) any {
 		r.beginScope()
 		r.scopes.Peek()["super"] = true
 	}
+
 	r.beginScope()
 	r.scopes.Peek()["this"] = true
 
@@ -52,8 +68,10 @@ func (r Resolver) VisitClassStmt(stmt ClassStmt) any {
 		if method.Name.Lexeme == "init" {
 			declaration = functionType.Initializer
 		}
+
 		r.resolveFunction(method, declaration)
 	}
+
 	r.endScope()
 	if stmt.Superclass != nil {
 		r.endScope()
@@ -83,12 +101,6 @@ func (r Resolver) VisitIfStmt(stmt IfStmt) any {
 	return nil
 }
 
-func (r Resolver) VisitWhileStmt(stmt WhileStmt) any {
-	r.resolve(stmt.Condition)
-	r.resolve(stmt.Body)
-	return nil
-}
-
 func (r Resolver) VisitPrintStmt(stmt PrintStmt) any {
 	r.resolve(stmt.Expression)
 	return nil
@@ -100,8 +112,9 @@ func (r Resolver) VisitReturnStmt(stmt ReturnStmt) any {
 	}
 	if stmt.Value != nil {
 		if r.currentFunction == functionType.Initializer {
-			emitTokenError(stmt.Keyword, "Can't return a value from an initializer")
+			emitTokenError(stmt.Keyword, "Can't return a value from an initializer.")
 		}
+
 		r.resolve(stmt.Value)
 	}
 	return nil
@@ -113,6 +126,12 @@ func (r Resolver) VisitVariableStmt(stmt VariableStmt) any {
 		r.resolve(stmt.Initializer)
 	}
 	r.define(stmt.Name)
+	return nil
+}
+
+func (r Resolver) VisitWhileStmt(stmt WhileStmt) any {
+	r.resolve(stmt.Condition)
+	r.resolve(stmt.Body)
 	return nil
 }
 
@@ -191,26 +210,11 @@ func (r Resolver) VisitVariableExpr(expr VariableExpr) any {
 	if !r.scopes.IsEmpty() {
 		variable, inScope := r.scopes.Peek()[expr.Name.Lexeme]
 		if inScope && variable == false {
-			emitTokenError(expr.Name, "Can't read local varaible in its own initializer")
+			emitTokenError(expr.Name, "Can't read local variable in its own initializer.")
 		}
 	}
 	r.resolveLocal(expr, expr.Name)
 	return nil
-}
-
-func (r Resolver) resolve(a any) {
-	switch arg := a.(type) {
-	case []Stmt:
-		for _, statement := range arg {
-			r.resolve(statement)
-		}
-	case Stmt:
-		arg.Accept(r)
-	case Expr:
-		arg.Accept(r)
-	default:
-		panic("unexpected resolve")
-	}
 }
 
 func (r Resolver) resolveFunction(function FunctionStmt, t functionType.FunctionType) any {

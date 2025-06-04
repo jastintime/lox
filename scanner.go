@@ -36,6 +36,9 @@ func newScanner(source string) *Scanner {
 }
 
 func (s *Scanner) ScanTokens() []*Token {
+	defer func() {
+		recover()
+	}()
 	for !s.isAtEnd() {
 		s.start = s.current
 		s.scanToken()
@@ -115,7 +118,7 @@ func (s *Scanner) scanToken() {
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			emitError(s.line, "Unexpected character: "+string(c))
+			emitError(s.line, "Unexpected character.")
 		}
 	}
 }

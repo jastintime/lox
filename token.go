@@ -9,45 +9,45 @@ type TokenType int
 func (t TokenType) String() string {
 	switch t {
 	case LeftParen:
-		return "LeftParen"
+		return "("
 	case RightParen:
-		return "RightParen"
+		return ")"
 	case LeftBrace:
-		return "LeftBrace"
+		return "{"
 	case RightBrace:
-		return "RightBrace"
+		return "}"
 	case Comma:
-		return "Comma"
+		return ","
 	case Dot:
-		return "Dot"
+		return "."
 	case Minus:
-		return "Minus"
+		return "-"
 	case Plus:
-		return "Plus"
+		return "+"
 	case Semicolon:
-		return "Semicolon"
+		return ";"
 	case Slash:
-		return "Slash"
+		return "/"
 	case Star:
-		return "Star"
+		return "*"
 
 		// One or two character tokens.
 	case Bang:
-		return "Bang"
+		return "!"
 	case BangEqual:
-		return "BangEqual"
+		return "!="
 	case Equal:
-		return "Equal"
+		return "="
 	case EqualEqual:
-		return "EqualEqual"
+		return "=="
 	case Greater:
-		return "Greater"
+		return ">"
 	case GreaterEqual:
-		return "GreaterEqual"
+		return ">="
 	case Less:
-		return "Less"
+		return "<"
 	case LessEqual:
-		return "LessEqual"
+		return "<="
 
 		// Literals.
 	case Identifier:
@@ -59,41 +59,41 @@ func (t TokenType) String() string {
 
 		// Keywords.
 	case And:
-		return "And"
+		return "and"
 	case Class:
-		return "Class"
+		return "class"
 	case Else:
-		return "Else"
+		return "else"
 	case False:
-		return "False"
+		return "false"
 	case Fun:
-		return "Fun"
+		return "fun"
 	case For:
-		return "For"
+		return "for"
 	case If:
-		return "If"
+		return "if"
 	case Nil:
-		return "Nil"
+		return "nil"
 	case Or:
-		return "Or"
+		return "or"
 	case Print:
-		return "Print"
+		return "print"
 	case Return:
-		return "Return"
+		return "return"
 	case Super:
-		return "Super"
+		return "super"
 	case This:
-		return "This"
+		return "this"
 	case True:
-		return "True"
+		return "true"
 	case Var:
-		return "Var"
+		return "var"
 	case While:
-		return "While"
+		return "while"
 	case EOF:
 		return "EOF"
 	}
-	return "Unknown Token"
+	panic("Unknown Token")
 }
 
 const (

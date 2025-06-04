@@ -80,8 +80,9 @@ func run(source string, interpreter Interpreter) {
 func emitError(line int, message string) {
 	report(line, "", message)
 }
-func emitRuntimeError(operator Token, message string) {
-	fmt.Println(operator.Type, message, "\n[line ", operator.Line, "]")
+func emitRuntimeError(err RuntimeError) {
+	fmt.Fprintln(os.Stderr, err.Message)
+	fmt.Fprintf(os.Stderr, "[line %d]\n", err.Token.Line)
 	hadRuntimeError = true
 }
 
@@ -89,12 +90,17 @@ func emitTokenError(t Token, message string) {
 	if t.Type == EOF {
 		report(t.Line, " at end", message)
 	} else {
-		report(t.Line, " at '"+t.Lexeme+"'", message)
+		if t.Type == Identifier || t.Type == Number {
+			report(t.Line, " at '"+t.Lexeme+"'", message)
+			return
+		}
+		report(t.Line, " at '"+t.Type.String()+"'", message)
 	}
 }
 
 func report(line int, where string, message string) {
-	fmt.Println("[line ", line, "] Error", where, ": ", message)
+	fmt.Fprintf(os.Stderr, "[line %d] Error%s: %s\n", line, where, message)
+
 	hadError = true
 
 }

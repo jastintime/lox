@@ -10,6 +10,9 @@ type Interpreter struct {
 	Globals     Environment
 	Locals      map[Expr]int
 }
+type ReturnValue struct {
+	Value any
+}
 
 func newInterpreter() Interpreter {
 	globals := newEnvironment(nil)
@@ -32,102 +35,16 @@ func (c Clock) String() string {
 }
 
 func (i Interpreter) Interpret(statements []Stmt) {
-	for _, statement := range statements {
-		if hadRuntimeError {
+	defer func() {
+		runtimeError, ok := recover().(RuntimeError)
+		if ok {
+			emitRuntimeError(runtimeError)
 			return
 		}
+	}()
+	for _, statement := range statements {
 		i.execute(statement)
 	}
-}
-
-func (i Interpreter) VisitLiteralExpr(expr LiteralExpr) any {
-	return expr.Value
-}
-
-func (i Interpreter) VisitLogicalExpr(expr LogicalExpr) any {
-	left := i.evaluate(expr.Left)
-	if expr.Operator.Type == Or {
-		if i.isTruthy(left) {
-			return left
-		} else {
-			if !i.isTruthy(left) {
-				return left
-			}
-		}
-	}
-	return i.evaluate(expr.Right)
-}
-
-func (i Interpreter) VisitSetExpr(expr SetExpr) any {
-	object := i.evaluate(expr.Object)
-	o, ok := object.(LoxInstance)
-	if !ok {
-		emitRuntimeError(expr.Name, "Only instances have fields.")
-	}
-	value := i.evaluate(expr.Value)
-	o.Set(expr.Name, value)
-	return value
-}
-
-func (i Interpreter) VisitSuperExpr(expr SuperExpr) any {
-	distance := i.Locals[expr]
-	superclass, _ := i.Environment.GetAt(distance, "super").(LoxClass)
-	object, _ := i.Environment.GetAt(distance-1, "this").(LoxInstance)
-	method, exist := superclass.FindMethod(expr.Method.Lexeme)
-	if !exist {
-		emitRuntimeError(expr.Method, "Undefined property '"+expr.Method.Lexeme+"'")
-	}
-	return method.Bind(object)
-}
-
-func (i Interpreter) VisitThisExpr(expr ThisExpr) any {
-	return i.lookupVariable(expr.Keyword, expr)
-}
-
-func (i Interpreter) VisitUnaryExpr(expr UnaryExpr) any {
-	right := i.evaluate(expr.Right)
-	switch expr.Operator.Type {
-	case Bang:
-		return !i.isTruthy(right)
-	case Minus:
-		i.checkNumberOperand(expr.Operator, right)
-		return -right.(float64)
-	}
-	//unreachable
-	return nil
-}
-
-func (i Interpreter) checkNumberOperand(operator Token, operand any) {
-	_, ok := operand.(float64)
-	if ok {
-		return
-	}
-	emitRuntimeError(operator, "Operand must be a number.")
-}
-
-func (i Interpreter) checkNumberOperands(operator Token, left any, right any) bool {
-	_, okleft := left.(float64)
-	_, okright := right.(float64)
-	if okleft && okright {
-		return true
-	}
-	emitRuntimeError(operator, "Operands must be numbers.")
-	return false
-}
-
-func (i Interpreter) isTruthy(object any) bool {
-	if object == nil {
-		return false
-	}
-	value, ok := object.(bool)
-	if ok {
-		return value
-	}
-	return true
-}
-
-func (i Interpreter) VisitGroupingExpr(expr GroupingExpr) any {
-	return i.evaluate(expr.Expression)
 }
 
 func (i Interpreter) evaluate(expr Expr) any {
@@ -169,7 +86,7 @@ func (i Interpreter) VisitClassStmt(stmt ClassStmt) any {
 		superclass = i.evaluate(stmt.Superclass)
 		_, ok := superclass.(LoxClass)
 		if !ok {
-			emitRuntimeError(stmt.Superclass.Name, "Superclass must be a class.")
+			panic(RuntimeError{stmt.Superclass.Name, "Superclass must be a class."})
 		}
 	}
 	i.Environment.Define(stmt.Name.Lexeme, nil)
@@ -217,8 +134,25 @@ func (i Interpreter) VisitIfStmt(stmt IfStmt) any {
 
 func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
 	value := i.evaluate(stmt.Expression)
-	fmt.Println(value)
+	v, ok := value.(ReturnValue)
+	if ok {
+		value = i.unbox(v)
+	}
+	if value == nil {
+		fmt.Println("nil")
+	} else {
+		fmt.Println(value)
+	}
 	return nil
+}
+
+func (i Interpreter) unbox(boxed ReturnValue) any {
+	inside := boxed.Value
+	switch v := inside.(type) {
+	case ReturnValue:
+		return i.unbox(v)
+	}
+	return inside
 }
 
 func (i Interpreter) VisitReturnStmt(stmt ReturnStmt) any {
@@ -226,7 +160,7 @@ func (i Interpreter) VisitReturnStmt(stmt ReturnStmt) any {
 	if stmt.Value != nil {
 		value = i.evaluate(stmt.Value)
 	}
-	panic(value)
+	panic(ReturnValue{value})
 }
 
 func (i Interpreter) VisitVariableStmt(stmt VariableStmt) any {
@@ -249,6 +183,7 @@ func (i Interpreter) VisitWhileStmt(stmt WhileStmt) any {
 func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
 	value := i.evaluate(expr.Value)
 	distance, ok := i.Locals[expr]
+	//	fmt.Println("DISTANCE = ",distance)
 	if ok {
 		i.Environment.AssignAt(distance, expr.Name, value)
 	} else {
@@ -257,29 +192,16 @@ func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
 	return value
 }
 
-func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
-	return i.lookupVariable(expr.Name, expr)
-}
-
-func (i Interpreter) lookupVariable(name Token, expr Expr) any {
-	distance, ok := i.Locals[expr]
-	if ok {
-		return i.Environment.GetAt(distance, name.Lexeme)
-	}
-	return i.Globals.Get(name)
-
-}
-
 func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 	// NOTE: Scuffed, but anything that panics here is handled
 	// just don't want to write a bunch of stuff to push it up.
-	defer func() {
-		if recover() != nil {
-		}
-	}()
 
 	left := i.evaluate(expr.Left)
+	//	fmt.Println("left is ", left)
+	//	fmt.Println(expr.Operator.Type)
 	right := i.evaluate(expr.Right)
+	//	fmt.Println("right is ", right)
+	//fmt.Println("Type of left is ", reflect.TypeOf(expr.Left))
 	switch expr.Operator.Type {
 	case Greater:
 		i.checkNumberOperands(expr.Operator, left, right)
@@ -288,6 +210,7 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) >= right.(float64)
 	case Less:
+		//fmt.Println("HERE")
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) < right.(float64)
 	case LessEqual:
@@ -298,7 +221,7 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 		return left.(float64) - right.(float64)
 	case BangEqual:
 		// NOTE: no isEqual, golang handles this correctly
-		return !(left == right)
+		return left != right
 	case EqualEqual:
 		return left == right
 	case Plus:
@@ -312,18 +235,19 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 		if isLeftString && isRightString {
 			return leftString + rightString
 		}
-		emitRuntimeError(expr.Operator, "Operands must be two numbers or two strings.")
+		panic(RuntimeError{expr.Operator, "Operands must be two numbers or two strings."})
 	case Slash:
 		i.checkNumberOperands(expr.Operator, left, right)
 		if right.(float64) == 0 {
 			// one of the challenges
-			emitRuntimeError(expr.Operator, "division by zero! panic")
+			panic(RuntimeError{expr.Operator, "division by zero! panic"})
 		}
 		return left.(float64) / right.(float64)
 	case Star:
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) * right.(float64)
 	}
+
 	// Unreachable
 	return nil
 }
@@ -336,12 +260,11 @@ func (i Interpreter) VisitCallExpr(expr CallExpr) any {
 	}
 	function, ok := callee.(LoxCallable)
 	if !ok {
-		fmt.Println(callee)
-		emitRuntimeError(expr.Paren, "Can only call functions and classes.")
+		panic(RuntimeError{expr.Paren, "Can only call functions and classes."})
 		return nil
 	}
 	if len(arguments) != function.Arity() {
-		emitRuntimeError(expr.Paren, "Expected "+string(function.Arity())+" arguments but got "+string(len(arguments))+".")
+		panic(RuntimeError{expr.Paren, fmt.Sprintf("Expected %d arguments but got %d.", function.Arity(), len(arguments))})
 		return nil
 	}
 	return function.Call(i, arguments)
@@ -353,6 +276,118 @@ func (i Interpreter) VisitGetExpr(expr GetExpr) any {
 	if ok {
 		return value.Get(expr.Name)
 	}
-	emitRuntimeError(expr.Name, "Only instances have properties.")
+	panic(RuntimeError{expr.Name, "Only instances have properties."})
 	return nil
+}
+
+func (i Interpreter) VisitGroupingExpr(expr GroupingExpr) any {
+	return i.evaluate(expr.Expression)
+}
+
+func (i Interpreter) VisitLiteralExpr(expr LiteralExpr) any {
+	return expr.Value
+}
+
+func (i Interpreter) VisitLogicalExpr(expr LogicalExpr) any {
+	left := i.evaluate(expr.Left)
+	if expr.Operator.Type == Or {
+		if i.isTruthy(left) {
+			return left
+		}
+	}
+	if expr.Operator.Type == And {
+		if !i.isTruthy(left) {
+			return left
+		}
+	}
+	return i.evaluate(expr.Right)
+}
+
+func (i Interpreter) VisitSetExpr(expr SetExpr) any {
+	object := i.evaluate(expr.Object)
+	o, ok := object.(LoxInstance)
+	if !ok {
+		panic(RuntimeError{expr.Name, "Only instances have fields."})
+	}
+	value := i.evaluate(expr.Value)
+	o.Set(expr.Name, value)
+	return value
+}
+
+func (i Interpreter) VisitSuperExpr(expr SuperExpr) any {
+	distance := i.Locals[expr]
+	superclass, _ := i.Environment.GetAt(distance, "super").(LoxClass)
+	object, _ := i.Environment.GetAt(distance-1, "this").(LoxInstance)
+	method, exist := superclass.FindMethod(expr.Method.Lexeme)
+	if !exist {
+		panic(RuntimeError{expr.Method, "Undefined property '" + expr.Method.Lexeme + "'"})
+	}
+	return method.Bind(object)
+}
+
+func (i Interpreter) VisitThisExpr(expr ThisExpr) any {
+	return i.lookupVariable(expr.Keyword, expr)
+}
+
+func (i Interpreter) VisitUnaryExpr(expr UnaryExpr) any {
+	right := i.evaluate(expr.Right)
+	switch expr.Operator.Type {
+	case Bang:
+		return !i.isTruthy(right)
+	case Minus:
+		i.checkNumberOperand(expr.Operator, right)
+		return -right.(float64)
+	}
+	//unreachable
+	return nil
+}
+
+func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
+	//fmt.Println("im looking up", expr.Name)
+	//fmt.Println("I GOT " ,i.lookupVariable(expr.Name, expr))
+	return i.lookupVariable(expr.Name, expr)
+}
+
+func (i Interpreter) lookupVariable(name Token, expr Expr) any {
+	distance, ok := i.Locals[expr]
+	//fmt.Println("distance i got is ",i.Locals[expr])
+	if ok {
+		//	fmt.Println("I am okay")
+		//	fmt.Println("got from the environment",i.Environment.GetAt(distance, name.Lexeme))
+		return i.Environment.GetAt(distance, name.Lexeme)
+	}
+	return i.Globals.Get(name)
+
+}
+
+func (i Interpreter) checkNumberOperand(operator Token, operand any) {
+	_, ok := operand.(float64)
+	if ok {
+		return
+	}
+	panic(RuntimeError{operator, "Operand must be a number."})
+}
+
+func (i Interpreter) checkNumberOperands(operator Token, left any, right any) {
+	_, okleft := left.(float64)
+	_, okright := right.(float64)
+	if okleft && okright {
+		return
+	}
+	//fmt.Println("operator where we crash is ", operator.Lexeme)
+	//fmt.Println("type of left is ",reflect.TypeOf(left))
+	//fmt.Println("left ", left,"right ", right)
+	panic(RuntimeError{operator, "Operands must be numbers."})
+	return
+}
+
+func (i Interpreter) isTruthy(object any) bool {
+	if object == nil {
+		return false
+	}
+	value, ok := object.(bool)
+	if ok {
+		return value
+	}
+	return true
 }

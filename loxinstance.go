@@ -22,7 +22,7 @@ func (l LoxInstance) Get(name Token) any {
 	if exist {
 		return method.Bind(l)
 	}
-	emitRuntimeError(name, "Undefined property '"+name.Lexeme+"'.")
+	panic(RuntimeError{name, "Undefined property '" + name.Lexeme + "'."})
 	return nil
 }
 
