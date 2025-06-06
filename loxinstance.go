@@ -1,5 +1,7 @@
 package main
 
+import "maps"
+
 type LoxInstance struct {
 	Class  LoxClass
 	fields map[string]any
@@ -28,4 +30,8 @@ func (l LoxInstance) Get(name Token) any {
 
 func (l LoxInstance) Set(name Token, value any) {
 	l.fields[name.Lexeme] = value
+}
+
+func (l LoxInstance) Equals(other LoxInstance) bool {
+	return l.Class.Equals(other.Class) && maps.EqualFunc(l.fields, other.fields, isEqual)
 }

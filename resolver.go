@@ -183,7 +183,7 @@ func (r Resolver) VisitSetExpr(expr SetExpr) any {
 
 func (r Resolver) VisitSuperExpr(expr SuperExpr) any {
 	if r.currentClass == classType.None {
-		emitTokenError(expr.Keyword, "Can't use 'super' outside of a class")
+		emitTokenError(expr.Keyword, "Can't use 'super' outside of a class.")
 	} else if r.currentClass != classType.Subclass {
 		emitTokenError(expr.Keyword, "Can't use 'super' in a class with no superclass.")
 	}

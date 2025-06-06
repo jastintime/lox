@@ -64,3 +64,19 @@ func (e Environment) String() string {
 	return result
 
 }
+
+func (e Environment) Equals(other Environment) bool {
+	if !isEqual(e.enclosing, other.enclosing) {
+		return false
+	}
+	for k, v := range e.values {
+		ov, ok := other.values[k]
+		if !ok {
+			return false
+		}
+		if isEqual(v, ov) {
+			return false
+		}
+	}
+	return true
+}

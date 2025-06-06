@@ -38,3 +38,20 @@ func (l LoxClass) FindMethod(name string) (LoxFunction, bool) {
 	}
 	return LoxFunction{}, false
 }
+
+func (l LoxClass) Equals(other LoxClass) bool {
+	if (l.Name == other.Name && l.Superclass == other.Superclass) == false {
+		return false
+	}
+	for k, v := range l.Methods {
+		ov, ok := other.Methods[k]
+		if !ok {
+			return false
+		}
+
+		if !v.Equals(ov) {
+			return false
+		}
+	}
+	return true
+}

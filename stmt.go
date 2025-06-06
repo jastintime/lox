@@ -1,5 +1,7 @@
 package main
 
+import "slices"
+
 type StmtVisitor interface {
 	VisitExprStmt(stmt ExprStmt) any
 	VisitPrintStmt(stmt PrintStmt) any
@@ -34,6 +36,19 @@ type FunctionStmt struct {
 	Name   Token
 	Params []Token
 	Body   []Stmt
+}
+
+func (f FunctionStmt) Equals(other FunctionStmt) bool {
+	if f.Name != other.Name {
+		return false
+	}
+	if !slices.Equal(f.Params, other.Params) {
+		return false
+	}
+	if !slices.Equal(f.Body, other.Body) {
+		return false
+	}
+	return true
 }
 
 type IfStmt struct {

@@ -8,10 +8,10 @@ Pass all tests in the crafting interpreters test suite.
 | ---- | -------------- |
 | chap08\_statements | 69/69 |
 | chap09\_control | 95/96 | 
-| chap10\_functions | 131/139 |
-| chap11\_resolving | 138/147 |
-| chap12\_classes | 192/207 |
-| chap13\_inheritances | 203/239 |
+| chap10\_functions | 136/139 |
+| chap11\_resolving | 144/147 |
+| chap12\_classes | 204/207 |
+| chap13\_inheritance | 236/239 |
 
 Note, test are cumulative, a test not passing
 for chap09 will also be counted in the chap10 test

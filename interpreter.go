@@ -14,6 +14,15 @@ type ReturnValue struct {
 	Value any
 }
 
+func (r ReturnValue) Unbox() any {
+	inside := r.Value
+	switch v := inside.(type) {
+	case ReturnValue:
+		return v.Unbox()
+	}
+	return inside
+}
+
 func newInterpreter() Interpreter {
 	globals := newEnvironment(nil)
 	globals.Define("clock", Clock{})
@@ -36,10 +45,14 @@ func (c Clock) String() string {
 
 func (i Interpreter) Interpret(statements []Stmt) {
 	defer func() {
-		runtimeError, ok := recover().(RuntimeError)
+		panicked := recover()
+		runtimeError, ok := panicked.(RuntimeError)
 		if ok {
 			emitRuntimeError(runtimeError)
 			return
+		}
+		if panicked != nil {
+			panic(panicked)
 		}
 	}()
 	for _, statement := range statements {
@@ -92,7 +105,8 @@ func (i Interpreter) VisitClassStmt(stmt ClassStmt) any {
 	i.Environment.Define(stmt.Name.Lexeme, nil)
 
 	if stmt.Superclass != nil {
-		i.Environment = newEnvironment(&i.Environment)
+		old := i.Environment
+		i.Environment = newEnvironment(&old)
 		i.Environment.Define("super", superclass)
 	}
 
@@ -101,11 +115,16 @@ func (i Interpreter) VisitClassStmt(stmt ClassStmt) any {
 		function := newLoxFunction(method, i.Environment, method.Name.Lexeme == "init")
 		methods[method.Name.Lexeme] = function
 	}
-	// we know this is good cause we checked it earlier.
-	s, _ := superclass.(LoxClass)
 
-	class := LoxClass{stmt.Name.Lexeme, &s, methods}
-	if superclass != nil {
+	var class LoxClass
+	s, ok := superclass.(LoxClass)
+	if ok {
+		class = LoxClass{stmt.Name.Lexeme, &s, methods}
+	} else {
+		class = LoxClass{stmt.Name.Lexeme, nil, methods}
+	}
+
+	if ok {
 		i.Environment = *i.Environment.enclosing
 	}
 	i.Environment.Assign(stmt.Name, class)
@@ -136,7 +155,7 @@ func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
 	value := i.evaluate(stmt.Expression)
 	v, ok := value.(ReturnValue)
 	if ok {
-		value = i.unbox(v)
+		value = v.Unbox()
 	}
 	if value == nil {
 		fmt.Println("nil")
@@ -144,15 +163,6 @@ func (i Interpreter) VisitPrintStmt(stmt PrintStmt) any {
 		fmt.Println(value)
 	}
 	return nil
-}
-
-func (i Interpreter) unbox(boxed ReturnValue) any {
-	inside := boxed.Value
-	switch v := inside.(type) {
-	case ReturnValue:
-		return i.unbox(v)
-	}
-	return inside
 }
 
 func (i Interpreter) VisitReturnStmt(stmt ReturnStmt) any {
@@ -220,10 +230,9 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) - right.(float64)
 	case BangEqual:
-		// NOTE: no isEqual, golang handles this correctly
-		return left != right
+		return !isEqual(left, right)
 	case EqualEqual:
-		return left == right
+		return isEqual(left, right)
 	case Plus:
 		leftValue, isLeftDouble := left.(float64)
 		rightValue, isRightDouble := right.(float64)
@@ -320,7 +329,7 @@ func (i Interpreter) VisitSuperExpr(expr SuperExpr) any {
 	object, _ := i.Environment.GetAt(distance-1, "this").(LoxInstance)
 	method, exist := superclass.FindMethod(expr.Method.Lexeme)
 	if !exist {
-		panic(RuntimeError{expr.Method, "Undefined property '" + expr.Method.Lexeme + "'"})
+		panic(RuntimeError{expr.Method, "Undefined property '" + expr.Method.Lexeme + "'."})
 	}
 	return method.Bind(object)
 }
@@ -390,4 +399,38 @@ func (i Interpreter) isTruthy(object any) bool {
 		return value
 	}
 	return true
+}
+
+func isEqual(a any, b any) (ret bool) {
+	//NOTE: This function is neccesary because we can't compare maps in go by default
+	// we need to use the maps.Equal function or else we panic
+	defer func() {
+		panicked := recover()
+		if panicked != nil {
+			class1, ok := a.(LoxClass)
+			class2, ok2 := b.(LoxClass)
+			//
+			if ok && ok2 {
+				ret = class1.Equals(class2)
+				return
+			}
+			fun1, ok3 := a.(LoxFunction)
+			fun2, ok4 := b.(LoxFunction)
+			if ok3 && ok4 {
+				ret = fun1.Equals(fun2)
+				return
+			}
+			instance1, ok5 := a.(LoxInstance)
+			instance2, ok6 := a.(LoxInstance)
+			if ok5 && ok6 {
+				ret = instance1.Equals(instance2)
+				return
+			}
+
+			panic(panicked)
+		}
+	}()
+
+	return a == b
+
 }

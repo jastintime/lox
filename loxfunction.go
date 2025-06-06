@@ -22,7 +22,17 @@ func (l LoxFunction) Call(interpreter Interpreter, arguments []any) (result any)
 		result = recover()
 		if l.isInitializer {
 			result = l.Closure.GetAt(0, "this")
+			return
 		}
+		v, ok := result.(ReturnValue)
+		if ok {
+			result = v.Unbox()
+			return
+		}
+		if result != nil {
+			panic(result)
+		}
+
 	}()
 
 	environment := newEnvironment(&l.Closure)
@@ -42,4 +52,17 @@ func (l LoxFunction) Arity() int {
 
 func (l LoxFunction) String() string {
 	return "<fn " + l.Declaration.Name.Lexeme + ">"
+}
+
+func (l LoxFunction) Equals(other LoxFunction) bool {
+	if l.isInitializer != other.isInitializer {
+		return false
+	}
+	if !l.Declaration.Equals(other.Declaration) {
+		return false
+	}
+	if !l.Closure.Equals(other.Closure) {
+		return false
+	}
+	return true
 }

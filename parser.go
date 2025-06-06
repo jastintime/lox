@@ -60,7 +60,7 @@ func (p *Parser) declaration() Stmt {
 	return p.statement()
 }
 
-func (p *Parser) classDeclaration() Stmt {
+func (p *Parser) classDeclaration() (result Stmt) {
 	name := p.consume(Identifier, "Expect class name.")
 	var superclass *VariableExpr = nil
 	if p.match(Less) {
