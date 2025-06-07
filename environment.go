@@ -41,11 +41,11 @@ func (e *Environment) Define(name string, value any) {
 }
 
 func (e Environment) ancestor(distance int) Environment {
-	environment := e
+	env := e
 	for i := 0; i < distance; i++ {
-		environment = *environment.enclosing
+		env = *env.enclosing
 	}
-	return environment
+	return env
 }
 
 func (e Environment) GetAt(distance int, name string) any {

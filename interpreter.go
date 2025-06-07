@@ -174,8 +174,7 @@ func (i Interpreter) VisitReturnStmt(stmt ReturnStmt) any {
 }
 
 func (i Interpreter) VisitVariableStmt(stmt VariableStmt) any {
-	var value any
-	value = nil
+	var value any = nil
 	if stmt.Initializer != nil {
 		value = i.evaluate(stmt.Initializer)
 	}
@@ -193,7 +192,7 @@ func (i Interpreter) VisitWhileStmt(stmt WhileStmt) any {
 func (i Interpreter) VisitAssignExpr(expr AssignExpr) any {
 	value := i.evaluate(expr.Value)
 	distance, ok := i.Locals[expr]
-	//	fmt.Println("DISTANCE = ",distance)
+
 	if ok {
 		i.Environment.AssignAt(distance, expr.Name, value)
 	} else {
@@ -207,11 +206,7 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 	// just don't want to write a bunch of stuff to push it up.
 
 	left := i.evaluate(expr.Left)
-	//	fmt.Println("left is ", left)
-	//	fmt.Println(expr.Operator.Type)
 	right := i.evaluate(expr.Right)
-	//	fmt.Println("right is ", right)
-	//fmt.Println("Type of left is ", reflect.TypeOf(expr.Left))
 	switch expr.Operator.Type {
 	case Greater:
 		i.checkNumberOperands(expr.Operator, left, right)
@@ -220,7 +215,6 @@ func (i Interpreter) VisitBinaryExpr(expr BinaryExpr) any {
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) >= right.(float64)
 	case Less:
-		//fmt.Println("HERE")
 		i.checkNumberOperands(expr.Operator, left, right)
 		return left.(float64) < right.(float64)
 	case LessEqual:
@@ -352,17 +346,12 @@ func (i Interpreter) VisitUnaryExpr(expr UnaryExpr) any {
 }
 
 func (i Interpreter) VisitVariableExpr(expr VariableExpr) any {
-	//fmt.Println("im looking up", expr.Name)
-	//fmt.Println("I GOT " ,i.lookupVariable(expr.Name, expr))
 	return i.lookupVariable(expr.Name, expr)
 }
 
 func (i Interpreter) lookupVariable(name Token, expr Expr) any {
 	distance, ok := i.Locals[expr]
-	//fmt.Println("distance i got is ",i.Locals[expr])
 	if ok {
-		//	fmt.Println("I am okay")
-		//	fmt.Println("got from the environment",i.Environment.GetAt(distance, name.Lexeme))
 		return i.Environment.GetAt(distance, name.Lexeme)
 	}
 	return i.Globals.Get(name)
@@ -383,9 +372,6 @@ func (i Interpreter) checkNumberOperands(operator Token, left any, right any) {
 	if okleft && okright {
 		return
 	}
-	//fmt.Println("operator where we crash is ", operator.Lexeme)
-	//fmt.Println("type of left is ",reflect.TypeOf(left))
-	//fmt.Println("left ", left,"right ", right)
 	panic(RuntimeError{operator, "Operands must be numbers."})
 	return
 }

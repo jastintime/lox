@@ -36,12 +36,11 @@ func (p *Parser) declaration() Stmt {
 		if ok {
 			emitTokenError(parseError.Token, parseError.Messge)
 			p.synchronize()
+			return
 		}
 		//STILL WANT TO PANIC OTHERWISE
-		if !ok {
-			if recovered != nil {
-				panic(recovered)
-			}
+		if recovered != nil {
+			panic(recovered)
 		}
 	}()
 
@@ -101,44 +100,6 @@ func (p *Parser) statement() Stmt {
 	return p.expressionStatement()
 }
 
-//	func (p *Parser) forStatement() Stmt {
-//		p.consume(LeftParen, "Expect '(' after 'for'.")
-//
-//		var initializer Stmt
-//		if p.match(Semicolon) {
-//			initializer = nil
-//		} else if p.match(Var) {
-//			initializer = p.varDeclaration()
-//		} else {
-//			initializer = p.expressionStatement()
-//		}
-//
-//		var condition Expr = nil
-//		if !p.check(Semicolon) {
-//			condition = p.expression()
-//		}
-//		p.consume(Semicolon, "Expect ';' after loop condition.")
-//
-//		var increment Expr = nil
-//		if !p.check(RightParen) {
-//			increment = p.expression()
-//		}
-//		p.consume(RightParen, "Expect ')' after for clauses.")
-//		body := p.statement()
-//		if increment != nil {
-//			body = BlockStmt{[]Stmt{body, ExprStmt{increment}}}
-//		}
-//
-//		if condition == nil {
-//			condition = LiteralExpr{true}
-//		}
-//		body = WhileStmt{condition, body}
-//		if initializer != nil {
-//			body = BlockStmt{[]Stmt{initializer, body}}
-//		}
-//
-//		return body
-//	}
 func (p *Parser) forStatement() Stmt {
 	p.consume(LeftParen, "Expect '(' after 'for'.")
 	var initializer Stmt
