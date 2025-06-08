@@ -15,3 +15,8 @@ Pass all tests in the crafting interpreters test suite.
 
 Note, test are cumulative, a test not passing
 for chap09 will also be counted in the chap10 test
+
+Currently stuck passing the last three test, these all have to do with scoping in for loops,
+the culprit seems to be that i.Locals is being modified and the one at the correct distance
+is being replaced. I've spend far too long trying to figure out what line is wrong, a
+pull request would be greatly appreciated.
