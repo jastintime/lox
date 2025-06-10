@@ -4,7 +4,7 @@
 CC = cc
 CFLAGS = -O2 -g -Wall -Wextra -Winit-self -Wuninitialized -pedantic -Wunreachable-code
 BUILD_DIR = build
-OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/chunk.o $(BUILD_DIR)/memory.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/value.o $(BUILD_DIR)/vm.o
+OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/chunk.o $(BUILD_DIR)/memory.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/value.o $(BUILD_DIR)/vm.o $(BUILD_DIR)/compiler.o $(BUILD_DIR)/scanner.o
 
 all: lox
 
@@ -31,7 +31,15 @@ $(BUILD_DIR)/value.o: value.c memory.h value.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(BUILD_DIR)/vm.o: vm.c vm.h debug.h common.h
+$(BUILD_DIR)/vm.o: vm.c vm.h debug.h common.h compiler.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/compiler.o: compiler.c common.h compiler.h scanner.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(BUILD_DIR)/scanner.o: scanner.c common.h scanner.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
